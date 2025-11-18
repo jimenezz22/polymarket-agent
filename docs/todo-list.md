@@ -2,14 +2,13 @@
 ## Deadline: 21 nov 2025 23:59
 
 ### FASE 0 – Setup inicial (30–60 min)
-- [ ] Crear repo GitHub (público o privado + invitame si querés: @natalan)
-- [ ] Crear carpetas: `/agent`, `/api`, `/wallet`, `/tests`, `/docs`, `/utils`
-- [ ] Crear archivos base:
+- [ ] Leer archivos base:
   - `requirements.txt`
   - `.env.example`
   - `.gitignore`
   - `CONTEXT.md` 
   - `README.md`
+  - [ ] Crear carpetas: `/agent`, `/api`, `/wallet`, `/tests`, `/docs`, `/utils`
 - [ ] Commit inicial: “chore: initial project setup”
 
 ### FASE 1 – Conexión a Polymarket + Wallet (2–4 horas)
