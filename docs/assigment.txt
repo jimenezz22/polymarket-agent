@@ -1,0 +1,38 @@
+Assignment Title:
+Build a Polymarket AI Agent for Automated Trading and Rebalancing
+Assignment Description:
+Develop an AI-driven agent capable of interacting with Polymarket prediction markets to manage user bets automatically. The agent should monitor market probabilities in real-time, book profits when odds move favorably, rebalance positions across both outcomes to hedge gains, and cut losses if the odds become unfavorable.
+Using the example bet "Will Bitcoin go below 90k," with an initial bet of $1000 on "Yes" at 80% probability:
+Automatically book profit on position when probability rises (e.g., from 80% to 85%) and rebalance the profit by betting on both "Yes" and "No."
+Book losses and exit if the probability drops below a threshold (e.g., 78%).
+Objectives:
+Implement real-time odds tracking and data retrieval from Polymarket API.
+Develop automated trade execution logic for profit booking and rebalancing.
+Ensure risk management by defining and acting on loss thresholds.
+Utilize wallet integration and secure transaction handling for placing bets.
+Demonstrate the ability to hedge positions properly to protect profits.
+Deliverables:
+Source code implementing the AI agent.
+Documentation explaining the architecture, API usage, and trading logic.
+A test report showing sample trades with market movements, profit bookings, and rebalancing actions.
+Optional: Discussion on potential risks, improvements, and scalability.
+Evaluation Criteria:
+Completeness and correctness of the automated trading logic.
+Effective use of Polymarket API and secure wallet transactions.
+Clear handling of profit booking, rebalancing, and loss management.
+Quality of documentation and testing evidence.
+Submission Details:
+Submit your codebase via Git repository link or zipped folder.
+Include a README with setup instructions and usage guide.
+Email to: ask@heyelsa.ai
+Email Sub: Polymarket AI Agent for Automated Trading and Rebalancing
+Deadline: 21st Nov 2025
+
+Resources:
+FinFeedAPI - Offers a unified REST API for prediction market data including Polymarket, providing prices, historical OHLCV, and order books.​
+Polymarket Agents (GitHub) - An open-source developer framework with utilities for building AI agents on Polymarket, providing integration with the Polymarket API for market/event data and trade execution.​
+Polymarket official API - Offers SDKs in Python and JavaScript, with endpoints for market prices, trade histories, and real-time WebSocket feeds. Pricing starts with a free basic tier and premium plans for higher volume users.​
+MCP Server by berlinbra - A server implementation providing a Model Context Protocol interface that integrates with Polymarket API to fetch and analyze real-time market data for AI-assisted insights.​
+Bitquery - Provides a GraphQL API on Polygon for querying Polymarket prediction market data, prices, trade history, token holders, and contract events.​
+Apify Polymarket Scraper - A scraper service offering structured prediction market data for analysis at a subscription cost.​
+OpticOdds - Offers a sports betting API with real-time odds, including Polymarket sportsbook data on trial basis.

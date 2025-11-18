@@ -1,0 +1,12 @@
+#,Requerimiento obligatorio,Estado
+1 - Monitorear en tiempo real la probabilidad de un mercado Polymarket
+2 - Detectar cuando sube X% (ej: de 80% → ≥85%) → book profit
+3 - Vender parte o toda la posición “Yes” y tomar ganancia
+4 - "Con la ganancia, comprar el lado contrario (“No”) para hedgear"
+5 - Detectar cuando baja bajo threshold (ej: ≤78%) → cut loss y salir
+6 - "Tracking de posición actual (shares Yes/No, costo promedio, PnL)"
+7 - Ejecución real de órdenes en Polygon (mainnet o Amoy testnet)
+8 - "Uso seguro de wallet (private key en .env, nunca hardcodeada)"
+9 - Test report con al menos 3 escenarios completos (tabla + PnL)
+10 - README + ARCHITECTURE.md + setup instructions
+11 - "Código modular, limpio y comentado"
