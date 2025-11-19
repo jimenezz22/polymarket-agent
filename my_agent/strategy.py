@@ -1,10 +1,10 @@
 """Core trading strategy logic for automated hedging."""
 
 from typing import Optional, Dict, Tuple
-from agent.position import Position
-from agent.pnl_calculator import calculate_hedge_shares
-from utils.config import config
-from utils.logger import log_info, log_success, log_warning, log_error
+from my_agent.position import Position
+from my_agent.pnl_calculator import calculate_hedge_shares
+from my_agent.utils.config import config
+from my_agent.utils.logger import log_info, log_success, log_warning, log_error
 
 
 class TradingStrategy:

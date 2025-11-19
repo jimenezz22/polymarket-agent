@@ -11,13 +11,16 @@ load_dotenv()
 class Config:
     """Application configuration loaded from environment variables."""
 
-    # Core
-    PRIVATE_KEY: str = os.getenv("PRIVATE_KEY", "")
+    # Core - Support both our var and agents framework var
+    PRIVATE_KEY: str = os.getenv("PRIVATE_KEY") or os.getenv("POLYGON_WALLET_PRIVATE_KEY", "")
     POLYGON_RPC_URL: str = os.getenv(
         "POLYGON_RPC_URL",
         "https://polygon-mainnet.g.alchemy.com/v2/demo"
     )
     CHAIN_ID: int = int(os.getenv("CHAIN_ID", "137"))
+
+    # OpenAI for AI features (optional)
+    OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
 
     # Market
     MARKET_CONDITION_ID: str = os.getenv("MARKET_CONDITION_ID", "")
