@@ -6,7 +6,7 @@ import sys
 from typing import Callable, Optional
 from datetime import datetime
 from rich.table import Table
-from utils.logger import console
+from my_agent.utils.logger import console
 
 
 class GracefulKiller:

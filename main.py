@@ -8,8 +8,14 @@ Built on top of: https://github.com/Polymarket/agents
 
 import time
 import sys
+import warnings
 from datetime import datetime
 from typing import Optional
+
+# Suppress debug output from agents framework
+import os
+os.environ['PYTHONWARNINGS'] = 'ignore'
+warnings.filterwarnings('ignore')
 
 # Polymarket Agents Framework
 from agents.polymarket.polymarket import Polymarket
@@ -128,11 +134,13 @@ def fetch_market_data(gamma_client: GammaMarketClient, condition_id: str) -> Opt
         Tuple of (yes_price, no_price) or None on error
     """
     def _fetch():
-        # Get markets filtered by condition ID
-        # Note: Gamma API returns prices as strings that need parsing
+        import json
+        # Fetch raw data without pydantic parsing to avoid debug logs
+        # parse_pydantic=False prevents framework from logging every market
+        # NOTE: Gamma API uses 'condition_ids' (plural), not 'condition_id'
         markets = gamma_client.get_markets(
-            {"condition_id": condition_id},
-            parse_pydantic=True
+            {"condition_ids": condition_id.lower()},  # Plural & lowercase
+            parse_pydantic=False  # Avoid debug output
         )
 
         if not markets or len(markets) == 0:
@@ -140,12 +148,20 @@ def fetch_market_data(gamma_client: GammaMarketClient, condition_id: str) -> Opt
 
         market = markets[0]
 
-        # outcomePrices is a list [yes_price, no_price] as strings
-        if not hasattr(market, 'outcomePrices') or len(market.outcomePrices) < 2:
+        # Parse prices manually
+        prices = market.get('outcomePrices')
+        if not prices:
             raise ValueError("Market does not have outcome prices")
 
-        yes_price = float(market.outcomePrices[0])
-        no_price = float(market.outcomePrices[1])
+        # Prices might be stringified JSON
+        if isinstance(prices, str):
+            prices = json.loads(prices)
+
+        if len(prices) < 2:
+            raise ValueError("Invalid outcome prices format")
+
+        yes_price = float(prices[0])
+        no_price = float(prices[1])
 
         if not validate_market_data(yes_price, no_price):
             raise ValueError(f"Invalid market data: YES={yes_price}, NO={no_price}")
