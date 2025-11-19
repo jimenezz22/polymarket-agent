@@ -2,7 +2,7 @@
 """Test script for Phase 3 - Core Trading Strategy."""
 
 import os
-from utils.logger import (
+from my_agent.utils.logger import (
     console,
     log_info,
     log_success,
@@ -10,9 +10,9 @@ from utils.logger import (
     print_header,
     print_status_table
 )
-from agent.position import Position
-from agent.strategy import create_strategy
-from agent.pnl_calculator import format_pnl, format_roi
+from my_agent.position import Position
+from my_agent.strategy import create_strategy
+from my_agent.pnl_calculator import format_pnl, format_roi
 
 
 def test_scenario_1_profit_lock():

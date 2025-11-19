@@ -2,7 +2,7 @@
 """Test script for Phase 2 - Position Manager & PnL Calculator."""
 
 import os
-from utils.logger import (
+from my_agent.utils.logger import (
     console,
     log_info,
     log_success,
@@ -10,8 +10,8 @@ from utils.logger import (
     print_header,
     print_status_table
 )
-from agent.position import Position, get_position
-from agent.pnl_calculator import (
+from my_agent.position import Position, get_position
+from my_agent.pnl_calculator import (
     calculate_hedge_shares,
     calculate_final_pnl_scenarios,
     calculate_roi,
