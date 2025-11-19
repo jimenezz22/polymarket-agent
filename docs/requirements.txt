@@ -1,12 +1,33 @@
-#,Requerimiento obligatorio,Estado
-1 - Monitorear en tiempo real la probabilidad de un mercado Polymarket
-2 - Detectar cuando sube X% (ej: de 80% → ≥85%) → book profit
-3 - Vender parte o toda la posición “Yes” y tomar ganancia
-4 - "Con la ganancia, comprar el lado contrario (“No”) para hedgear"
-5 - Detectar cuando baja bajo threshold (ej: ≤78%) → cut loss y salir
-6 - "Tracking de posición actual (shares Yes/No, costo promedio, PnL)"
-7 - Ejecución real de órdenes en Polygon (mainnet o Amoy testnet)
-8 - "Uso seguro de wallet (private key en .env, nunca hardcodeada)"
-9 - Test report con al menos 3 escenarios completos (tabla + PnL)
-10 - README + ARCHITECTURE.md + setup instructions
-11 - "Código modular, limpio y comentado"
+# Requerimientos – Polymarket AI Hedge Agent
+
+## Requerimientos Obligatorios (del Assignment)
+| # | Requerimiento | Detalle | Estado |
+|---|---------------|---------|--------|
+| 1 | Real-time odds tracking | Fetch probabilidades (YES price) via Polymarket API/Gamma cada 15-20s | ☐ |
+| 2 | Automated trade execution | Book profit (sell YES al subir prob ≥85%), rebalance (buy NO con proceeds para hedge) | ☐ |
+| 3 | Risk management | Cut loss (sell all si prob ≤78%), track PnL unrealized/locked | ☐ |
+| 4 | Wallet integration | Secure signing con private key (Polygon RPC), approvals USDC | ☐ |
+| 5 | Hedging demo | Mostrar cómo rebalance protege profit (math: shares YES/NO garantizan +USD sin importar outcome) | ☐ |
+| 6 | Test report | 3+ escenarios con tablas (movimientos prob, trades, PnL) | ☐ |
+| 7 | Docs | README (setup), ARCHITECTURE.md (API + logic), risks/improvements | ☐ |
+
+## Requerimientos AI-Driven (para "wow" factor)
+| # | Feature AI | Cómo Implementar | Por qué |
+|---|------------|------------------|---------|
+| 8 | Rule-based core | Thresholds fijos (85%/78%) para decisions | Base sólida, auditable |
+| 9 | LLM enhancement (opcional) | Usa OpenAI/Grok en strategy: "Analizá news + prob → ajusta threshold dinámico" | Muestra "AI-driven" real |
+| 10 | RAG integration | Vectoriza news (Chroma de agents repo) para context en prompts | Escalable a multi-mercado |
+
+## Tech Stack Fijo
+- **Base**: Fork de [Polymarket/agents](https://github.com/Polymarket/agents) (integra Gamma API + trade execution)
+- **Lang**: Python 3.9+
+- **API**: py-clob-client (en agents), WebSocket para real-time
+- **Wallet**: web3.py + Polygon RPC (Amoy testnet para tests)
+- **AI**: OpenAI API (opcional, via agents utils)
+- **Testing**: pytest + historical data de Bitquery/FinFeed
+- **Deps**: Ver requirements.txt (incluye pydantic, rich, chroma)
+
+## Constraints
+- **No mainnet real**: Usa testnet + simulaciones para evitar riesgos
+- **Mercado ejemplo**: "Will Bitcoin go below 90k" (busca slug real via CLI de agents)
+- **Deadline**: 21 nov 2025 → MVP rule-based + AI optional
