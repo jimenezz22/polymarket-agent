@@ -1,116 +1,190 @@
 # Architecture - Polymarket AI Hedge Agent
 
+> **Built on [Polymarket/agents](https://github.com/Polymarket/agents) Framework**
+
 ## System Overview
+
+This project extends the official Polymarket Agents framework with custom hedging strategy logic.
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                         Main Loop                            │
-│                        (main.py)                             │
-└───────────┬─────────────────────────────────────┬───────────┘
-            │                                     │
-            ▼                                     ▼
-┌───────────────────────┐           ┌─────────────────────────┐
-│   Market Data Layer   │           │    Strategy Engine      │
-│      (/api)           │           │      (/agent)           │
-│                       │           │                         │
-│ - py-clob-client      │           │ - Position Manager      │
-│ - Market prices       │           │ - PnL Calculator        │
-│ - Probabilities       │           │ - Take Profit Logic     │
-│ - Order execution     │           │ - Stop Loss Logic       │
-└───────────┬───────────┘           │ - Hedging Math          │
-            │                       └──────────┬──────────────┘
-            │                                  │
-            ▼                                  ▼
-┌───────────────────────┐           ┌─────────────────────────┐
-│    Wallet Layer       │           │    State Management     │
-│     (/wallet)         │           │                         │
-│                       │           │ - position.json         │
-│ - web3.py             │           │ - Trade history         │
-│ - Polygon RPC         │           │ - Persistent state      │
-│ - Transaction signing │           └─────────────────────────┘
-│ - Balance checking    │
-└───────────────────────┘
+│                      Main Loop (main.py)                     │
+│         Integrates Agents Framework + Custom Strategy       │
+└───────────┬──────────────────────────────────────┬──────────┘
+            │                                      │
+            ▼                                      ▼
+┌──────────────────────────┐          ┌─────────────────────────┐
+│  Polymarket Agents       │          │  Custom Hedge Strategy  │
+│  Framework (/agents)     │          │     (/my_agent)         │
+│                          │          │                         │
+│ • Polymarket()           │◄────────►│ • TradingStrategy       │
+│   - CLOB Client          │          │   - Take Profit Logic   │
+│   - Order Execution      │          │   - Stop Loss Logic     │
+│   - Wallet Management    │          │   - Hedging Math        │
+│                          │          │                         │
+│ • GammaMarketClient()    │◄────────►│ • Position Manager      │
+│   - Market Data          │          │   - State Tracking      │
+│   - Probabilities        │          │   - PnL Calculation     │
+│   - Events/News          │          │   - Trade History       │
+│                          │          │                         │
+│ • Connectors             │          │ • PnL Calculator        │
+│   - News API             │          │   - Hedge Calculations  │
+│   - Search               │          │   - ROI Metrics         │
+│   - ChromaDB (RAG)       │          │   - Breakeven Analysis  │
+└──────────────────────────┘          └─────────────────────────┘
+            │                                      │
+            └──────────────┬───────────────────────┘
+                           ▼
+                  ┌─────────────────────┐
+                  │  State Management   │
+                  │                     │
+                  │ • position.json     │
+                  │ • Trade history     │
+                  │ • Config (.env)     │
+                  └─────────────────────┘
 ```
 
 ## Component Details
 
 ### 1. Main Loop (`main.py`)
 
+**Integration Point:** Uses both Agents framework and custom strategy
+
 **Responsibilities:**
-- Initialize wallet and API connections
+- Initialize `Polymarket()` and `GammaMarketClient()` from agents framework
+- Initialize custom `TradingStrategy` and `Position` manager
 - Run infinite monitoring loop
-- Orchestrate strategy execution
-- Handle errors and reconnections
-- Logging and console output
+- Orchestrate strategy evaluation
+- Display rich console output
+- Handle graceful shutdown
 
 **Flow:**
 ```python
-while True:
-    1. Fetch current market probability
-    2. Load position state
-    3. Calculate current PnL
-    4. Evaluate strategy conditions
-    5. Execute trades if needed
-    6. Save updated state
-    7. Log results
-    8. Sleep for polling interval
+# Initialize (from agents framework)
+polymarket_client = Polymarket()           # Official client
+gamma_client = GammaMarketClient()         # Market data
+position = get_position()                  # Our position manager
+strategy = create_strategy(position)       # Our hedge strategy
+
+while not killed:
+    1. Fetch current market data via gamma_client.get_markets()
+    2. Parse YES/NO prices from market.outcomePrices
+    3. Get position summary with current PnL
+    4. Evaluate strategy: strategy.evaluate(current_prob, yes_price, no_price)
+    5. Execute trades if needed (via polymarket_client)
+    6. Update and save position state
+    7. Display status with Rich CLI
+    8. Sleep for polling interval (default 20s)
 ```
 
-### 2. Market Data Layer (`/api`)
+### 2. Polymarket Agents Framework (`/agents`)
+
+**Source:** Official [Polymarket/agents](https://github.com/Polymarket/agents) repository
+
+**Components Used:**
+
+#### 2.1 `agents/polymarket/polymarket.py`
+- `Polymarket()` class - Main CLOB client
+- Handles wallet management (web3, signing)
+- Order execution via `py_clob_client`
+- USDC balance checking
+- Token approvals for CTF Exchange
+
+**Key Methods:**
+```python
+polymarket_client.get_address_for_private_key() → wallet address
+polymarket_client.get_balance_usdc() → USDC balance
+polymarket_client.place_order(...) → execute trade
+```
+
+#### 2.2 `agents/polymarket/gamma.py`
+- `GammaMarketClient()` - Market data from Gamma API
+- Fetches live probabilities
+- Market info, events, tags
+- Pydantic models for type safety
+
+**Key Methods:**
+```python
+gamma_client.get_markets({"condition_id": "0x..."}) → list[Market]
+market.outcomePrices → [yes_price, no_price]
+```
+
+#### 2.3 `agents/connectors/`
+- News API integration
+- Search capabilities
+- ChromaDB for RAG (optional for AI features)
+
+### 3. Custom Hedge Strategy (`/my_agent`)
+
+**Our Custom Implementation** - This is where the hedging magic happens
 
 **Files:**
-- `polymarket_client.py` - Polymarket SDK wrapper
-- `market_data.py` - Market data fetching and parsing
+- `my_agent/position.py` - Position tracking and persistence
+- `my_agent/strategy.py` - Take-profit/stop-loss logic
+- `my_agent/pnl_calculator.py` - Hedging math
+- `my_agent/utils/` - Config, logging, helpers
 
-**Key Functions:**
-- `get_market_by_condition_id(condition_id)` → Returns market info + tokens
-- `get_yes_price(condition_id)` → Returns float (e.g. 0.86) - share price = implied probability
-- `get_user_shares(address, condition_id)` → Returns (yes_shares, no_shares)
-- `place_order(condition_id, outcome_index, amount_shares, price=None)` → price=None = market order with slippage protection
-
-### 3. Wallet Layer (`/wallet`)
-
-**Files:**
-- `wallet_manager.py` - Web3 wallet operations
-
-**Key Functions:**
-- `connect_wallet(private_key)` → Initialize wallet from private key
-- `get_balance(token_address)` → Get USDC balance
-- `approve_token(token, spender, amount)` → ERC20 approval
-- `sign_transaction(tx)` → Sign transaction with private key
-- `get_address()` → Get wallet address
-
-### 4. Strategy Engine (`/agent`)
-
-**Files:**
-- `position.py` - Position class and management
-- `strategy.py` - Core trading logic
-- `pnl_calculator.py` - PnL computation
+#### 3.1 Position Manager (`position.py`)
 
 **Position Class:**
 ```python
 class Position:
-    yes_shares: float
-    no_shares: float
-    avg_cost_yes: float
-    avg_cost_no: float
-    entry_prob: float
+    yes_shares: float          # Current YES holdings
+    no_shares: float           # Current NO holdings
+    avg_cost_yes: float        # Average cost per YES
+    avg_cost_no: float         # Average cost per NO
+    entry_prob: float          # Entry probability
+    total_invested: float      # Total USDC invested
+    total_withdrawn: float     # Total USDC withdrawn
+    trades: List[Trade]        # Complete trade history
 
-    def calculate_unrealized_pnl(current_prob)
-    def calculate_locked_pnl()
-    def update_from_trade(side, shares, price)
-    def save()
-    def load()
+    # Core methods
+    def open_position(shares, price, side="YES")
+    def sell_shares(shares, price, side="YES") → usdc_proceeds
+    def calculate_unrealized_pnl(yes_price, no_price) → Dict
+    def calculate_locked_pnl() → float  # GUARANTEED profit from hedge
+    def save() → Persists to position.json
+    def load() → Loads from position.json
 ```
 
-**Strategy Functions:**
-- `should_take_profit(current_prob, threshold)` → bool
-- `should_cut_loss(current_prob, threshold)` → bool
-- `book_profit_and_rebalance(position, sell_pct)` → Execute hedge
-- `cut_loss_and_exit(position)` → Exit position
-- `calculate_hedge_amount(position, sell_proceeds)` → Hedge math
+#### 3.2 Trading Strategy (`strategy.py`)
 
-### 5. Utilities (`/utils`)
+**TradingStrategy Class:**
+```python
+class TradingStrategy:
+    def __init__(position, take_profit=0.85, stop_loss=0.78, hedge_pct=1.0)
+
+    # Decision logic
+    def should_take_profit(current_prob) → bool
+    def should_cut_loss(current_prob) → bool
+    def evaluate(current_prob, yes_price, no_price) → Dict[action, reason]
+
+    # Execution (integrates with Polymarket client)
+    def book_profit_and_rebalance(yes_price, no_price) → Dict
+    def cut_loss_and_exit(yes_price, no_price) → Dict
+    def execute_action(action) → Optional[Dict]
+```
+
+**Key Logic:**
+- Only take profit if: has YES shares AND not hedged AND prob ≥ 85%
+- Only cut loss if: has YES shares AND not hedged AND prob ≤ 78%
+- If already hedged: HOLD (profit is locked!)
+
+#### 3.3 PnL Calculator (`pnl_calculator.py`)
+
+**Hedging Math Functions:**
+```python
+calculate_hedge_shares(yes_shares, sell_pct, yes_price, no_price)
+  → (yes_to_sell, no_to_buy, usdc_proceeds)
+
+calculate_final_pnl_scenarios(yes_shares, no_shares, total_cost)
+  → {pnl_if_yes_wins, pnl_if_no_wins, guaranteed_min, is_profitable}
+
+calculate_breakeven_prices(...)
+calculate_roi(current_value, invested, withdrawn)
+```
+
+### 4. Utilities (`my_agent/utils/`)
 
 **Files:**
 - `logger.py` - Rich logging configuration
@@ -149,12 +223,15 @@ class Position:
 
 ## Configuration
 
-Environment variables (`.env`):
-```
-# Core
-PRIVATE_KEY=0x...
+Environment variables (`.env`) - **Compatible with both our config and agents framework**:
+
+```bash
+# Wallet (agents framework variable)
+POLYGON_WALLET_PRIVATE_KEY=0x...
+
+# Network
 POLYGON_RPC_URL=https://polygon-mainnet.g.alchemy.com/v2/xxx
-CHAIN_ID=137  # or 80002 for Amoy testnet
+CHAIN_ID=137  # 137 = Polygon Mainnet, 80002 = Amoy Testnet
 
 # Market
 MARKET_CONDITION_ID=0x9c8f9e...  # ← only this, not slug
