@@ -24,6 +24,7 @@ from agents.polymarket.gamma import GammaMarketClient
 # Our Custom Hedging Strategy
 from my_agent.strategy import TradingStrategy, create_strategy
 from my_agent.position import Position, get_position
+from my_agent.ai_advisor import AIAdvisor, create_ai_advisor
 from my_agent.utils.config import config
 from my_agent.utils.logger import (
     console,
@@ -115,11 +116,25 @@ def initialize_agent():
         log_error(f"Strategy initialization failed: {e}")
         sys.exit(1)
 
+    # Initialize AI Advisor (multi-provider support)
+    try:
+        ai_advisor = create_ai_advisor(
+            enabled=True,  # Set to False to disable AI
+            provider="gemini",  # "gemini" (free!), "openai", or "claude"
+            model=None  # Auto-select best model for provider
+        )
+        # AI advisor logs its own status in __init__
+
+    except Exception as e:
+        log_warning(f"AI Advisor initialization failed: {e}")
+        log_info("Continuing without AI advisor (rules-only mode)")
+        ai_advisor = create_ai_advisor(enabled=False)
+
     console.print()
     log_success("All components initialized successfully!")
     console.print()
 
-    return polymarket_client, gamma_client, position, strategy
+    return polymarket_client, gamma_client, position, strategy, ai_advisor
 
 
 def fetch_market_data(gamma_client: GammaMarketClient, condition_id: str) -> Optional[tuple]:
@@ -178,7 +193,7 @@ def fetch_market_data(gamma_client: GammaMarketClient, condition_id: str) -> Opt
 def main_loop():
     """Main agent loop."""
     # Initialize
-    polymarket_client, gamma_client, position, strategy = initialize_agent()
+    polymarket_client, gamma_client, position, strategy, ai_advisor = initialize_agent()
 
     # Setup graceful shutdown
     killer = GracefulKiller()
@@ -231,12 +246,37 @@ def main_loop():
             # Get position summary
             position_summary = position.get_position_summary(yes_price, no_price)
 
-            # Evaluate strategy
-            action = strategy.evaluate(
+            # Evaluate strategy (rule-based)
+            rule_action = strategy.evaluate(
                 current_prob=current_prob,
                 yes_price=yes_price,
                 no_price=no_price
             )
+
+            # Get AI advisor analysis
+            market_question = config.MARKET_QUESTION or "Market prediction"
+            ai_analysis = ai_advisor.analyze_market_sentiment(
+                market_question=market_question,
+                current_prob=current_prob,
+                position_summary=position_summary,
+                rule_based_action=rule_action["action"]
+            )
+
+            # Combine rules + AI
+            final_action = rule_action.copy()
+            if ai_analysis.get("ai_enabled") and ai_analysis.get("recommendation"):
+                # AI can override if it has strong reasoning
+                if ai_analysis["recommendation"] != rule_action["action"]:
+                    log_info(f"🤖 AI Override: {rule_action['action']} → {ai_analysis['recommendation']}")
+                    log_info(f"   Confidence: {ai_analysis.get('confidence', 0)}%")
+                    log_info(f"   Reasoning: {ai_analysis.get('reasoning', 'N/A')[:100]}...")
+
+                    final_action["action"] = ai_analysis["recommendation"]
+                    final_action["ai_override"] = True
+                    final_action["ai_confidence"] = ai_analysis.get("confidence")
+                    final_action["ai_reasoning"] = ai_analysis.get("reasoning")
+                else:
+                    log_info(f"🤖 AI Confirms: {rule_action['action']} (confidence: {ai_analysis.get('confidence', 0)}%)")
 
             console.print()
 
@@ -246,15 +286,15 @@ def main_loop():
                 yes_price=yes_price,
                 no_price=no_price,
                 position_summary=position_summary,
-                action=action
+                action=final_action
             )
 
             console.print()
 
             # Execute action if needed
-            if action["action"] in ["TAKE_PROFIT", "STOP_LOSS"]:
-                log_warning(f"⚠ ACTION REQUIRED: {action['action']}")
-                log_info(f"Reason: {action['reason']}")
+            if final_action["action"] in ["TAKE_PROFIT", "STOP_LOSS"]:
+                log_warning(f"⚠ ACTION REQUIRED: {final_action['action']}")
+                log_info(f"Reason: {final_action['reason']}")
 
                 # NOTE: In production, integrate with polymarket_client for real trades
                 log_warning("⚠ DEMO MODE: Trade execution disabled")
@@ -269,7 +309,7 @@ def main_loop():
                 #         # Sell YES shares via polymarket_client
                 #         # Buy NO shares with proceeds
                 #         result = strategy.execute_action(action)
-                #     elif action["action"] == "STOP_LOSS":
+                #     elif final_action["action"] == "STOP_LOSS":
                 #         # Sell all shares
                 #         result = strategy.execute_action(action)
                 #
@@ -279,10 +319,10 @@ def main_loop():
                 # except Exception as e:
                 #     log_error(f"Action execution failed: {e}")
 
-            elif action["action"] == "HOLD":
+            elif final_action["action"] == "HOLD":
                 log_info("💼 HOLD - Position maintained")
 
-            elif action["action"] == "WAIT":
+            elif final_action["action"] == "WAIT":
                 log_info("⏸ WAIT - No position open")
 
             console.print()
