@@ -24,6 +24,7 @@ class Config:
 
     # Market
     MARKET_CONDITION_ID: str = os.getenv("MARKET_CONDITION_ID", "")
+    MARKET_QUESTION: str = os.getenv("MARKET_QUESTION", "Buffalo Bills to win Super Bowl 2026")
 
     # Strategy Parameters
     ENTRY_PROBABILITY: float = float(os.getenv("ENTRY_PROBABILITY", "0.80"))
