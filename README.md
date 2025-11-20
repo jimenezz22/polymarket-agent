@@ -22,7 +22,7 @@ This agent extends the official Polymarket Agents framework with a sophisticated
 - ✅ Detailed logging with Rich CLI interface
 - ✅ Comprehensive test scenarios and backtesting
 - ✅ PnL tracking (unrealized and locked)
-- 🔄 AI/LLM integration for dynamic threshold adjustment (optional)
+- ✅ AI/LLM integration for dynamic threshold adjustment
 
 ## Architecture
 
@@ -77,7 +77,7 @@ Edit `.env` file:
 ```env
 # Required for Polymarket Agents
 POLYGON_WALLET_PRIVATE_KEY=your_private_key_without_0x
-OPENAI_API_KEY=your_openai_key  # Optional for AI features
+GOOGLE_API_KEY=your_google_api_key  # for AI features
 
 # Network
 POLYGON_RPC_URL=https://polygon-mainnet.g.alchemy.com/v2/xxx
@@ -157,10 +157,16 @@ See test_strategy.py for detailed test scenarios:
 
 ## Documentation
 
-- [ARCHITECTURE.md](ARCHITECTURE.md) - Technical architecture details
-- [docs/context.md](docs/context.md) - Business logic and strategy
-- [docs/product.md](docs/product.md) - Product specifications
-- [docs/requirements.txt](docs/requirements.txt) - Project requirements
+### Core Docs
+- [ARCHITECTURE.md](docs/ARCHITECTURE.md) - System design & components
+- [TRADING_LOGIC.md](docs/TRADING_LOGIC.md) - Strategy & hedge math
+- [API_USAGE.md](docs/API_USAGE.md) - Polymarket & Gemini APIs
+- [SECURITY.md](docs/SECURITY.md) - Wallet & transaction security
+- [TESTING.md](docs/TESTING.md) - Test results & coverage
+
+### Additional
+- [FUTURE.md](docs/FUTURE.md) - Roadmap & improvements
+- [REFACTORING_REPORT.md](docs/REFACTORING_REPORT.md) - Clean code refactoring details
 
 ## Related Repos
 
