@@ -1,46 +1,84 @@
 """Helper utilities for the agent."""
 
-import time
 import signal
-import sys
-from typing import Callable, Optional
+import time
 from datetime import datetime
+from typing import Any, Callable, Dict, Optional, Tuple, Type
+
 from rich.table import Table
+
+from my_agent.utils.constants import (
+    DEFAULT_BACKOFF_FACTOR,
+    DEFAULT_INITIAL_DELAY_SECONDS,
+    DEFAULT_MAX_RETRIES,
+    DEFAULT_STOP_LOSS_PROBABILITY,
+    DEFAULT_TAKE_PROFIT_PROBABILITY,
+    DisplayColor,
+    MAX_PRICE,
+    MAX_PRICE_SUM,
+    MIN_PRICE,
+    MIN_PRICE_SUM,
+    TIMESTAMP_FORMAT_DISPLAY,
+)
 from my_agent.utils.logger import console
 
 
-class GracefulKiller:
-    """Handle graceful shutdown on SIGINT/SIGTERM."""
+# ============================================================================
+# SIGNAL HANDLING
+# ============================================================================
 
-    def __init__(self):
+
+class GracefulKiller:
+    """
+    Handle graceful shutdown on SIGINT/SIGTERM signals.
+
+    This allows the agent to clean up resources and save state
+    before exiting when Ctrl+C is pressed or SIGTERM is received.
+    """
+
+    def __init__(self) -> None:
+        """Initialize signal handlers."""
         self.kill_now = False
         signal.signal(signal.SIGINT, self.exit_gracefully)
         signal.signal(signal.SIGTERM, self.exit_gracefully)
 
-    def exit_gracefully(self, *args):
-        """Set kill flag on signal."""
+    def exit_gracefully(self, *args: Any) -> None:
+        """
+        Set kill flag when signal is received.
+
+        Args:
+            *args: Signal handler arguments (unused)
+        """
         self.kill_now = True
 
 
+# ============================================================================
+# RETRY LOGIC
+# ============================================================================
+
+
 def retry_with_backoff(
-    func: Callable,
-    max_retries: int = 3,
-    initial_delay: float = 1.0,
-    backoff_factor: float = 2.0,
-    exceptions: tuple = (Exception,)
-) -> Optional[any]:
+    func: Callable[[], Any],
+    max_retries: int = DEFAULT_MAX_RETRIES,
+    initial_delay: float = DEFAULT_INITIAL_DELAY_SECONDS,
+    backoff_factor: float = DEFAULT_BACKOFF_FACTOR,
+    exceptions: Tuple[Type[Exception], ...] = (Exception,)
+) -> Any:
     """
     Retry a function with exponential backoff.
 
     Args:
-        func: Function to retry
-        max_retries: Maximum retry attempts
-        initial_delay: Initial delay in seconds
-        backoff_factor: Multiplier for each retry
-        exceptions: Tuple of exceptions to catch
+        func: Function to retry (must take no arguments)
+        max_retries: Maximum number of retry attempts
+        initial_delay: Initial delay in seconds before first retry
+        backoff_factor: Multiplier for delay after each retry
+        exceptions: Tuple of exception types to catch and retry
 
     Returns:
-        Function result or None if all retries failed
+        The result of the function call
+
+    Raises:
+        The last exception if all retries are exhausted
     """
     delay = initial_delay
 
@@ -49,12 +87,20 @@ def retry_with_backoff(
             return func()
         except exceptions as e:
             if attempt == max_retries - 1:
+                # Last attempt failed, re-raise the exception
                 raise e
 
+            # Wait before retrying
             time.sleep(delay)
             delay *= backoff_factor
 
+    # This should never be reached due to the raise above
     return None
+
+
+# ============================================================================
+# FORMATTING UTILITIES
+# ============================================================================
 
 
 def format_timestamp(dt: Optional[datetime] = None) -> str:
@@ -62,123 +108,15 @@ def format_timestamp(dt: Optional[datetime] = None) -> str:
     Format timestamp for display.
 
     Args:
-        dt: Datetime object (default: now)
+        dt: Datetime object (default: current UTC time)
 
     Returns:
-        Formatted timestamp string
+        Formatted timestamp string (e.g., "2025-01-15 14:30:00 UTC")
     """
     if dt is None:
         dt = datetime.utcnow()
 
-    return dt.strftime("%Y-%m-%d %H:%M:%S UTC")
-
-
-def create_status_table(data: dict, title: str = "Status") -> Table:
-    """
-    Create a Rich table for status display.
-
-    Args:
-        data: Dictionary of key-value pairs
-        title: Table title
-
-    Returns:
-        Rich Table object
-    """
-    table = Table(title=title, show_header=True, header_style="bold cyan")
-    table.add_column("Metric", style="cyan", no_wrap=True)
-    table.add_column("Value", style="white")
-
-    for key, value in data.items():
-        table.add_row(key, str(value))
-
-    return table
-
-
-def print_agent_status(
-    current_prob: float,
-    yes_price: float,
-    no_price: float,
-    position_summary: dict,
-    action: dict
-):
-    """
-    Print comprehensive agent status.
-
-    Args:
-        current_prob: Current probability
-        yes_price: YES price
-        no_price: NO price
-        position_summary: Position summary dict
-        action: Recommended action dict
-    """
-    # Market data
-    market_table = Table(title="📊 Market Data", show_header=False, box=None)
-    market_table.add_column(style="cyan")
-    market_table.add_column(style="white")
-
-    prob_color = "green" if current_prob >= 0.85 else "red" if current_prob <= 0.78 else "yellow"
-
-    market_table.add_row("Current Probability", f"[{prob_color}]{current_prob * 100:.2f}%[/{prob_color}]")
-    market_table.add_row("YES Price", f"${yes_price:.4f}")
-    market_table.add_row("NO Price", f"${no_price:.4f}")
-
-    console.print(market_table)
-    console.print()
-
-    # Position
-    if position_summary["yes_shares"] > 0 or position_summary["no_shares"] > 0:
-        position_table = Table(title="💼 Position", show_header=False, box=None)
-        position_table.add_column(style="cyan")
-        position_table.add_column(style="white")
-
-        position_table.add_row("YES Shares", f"{position_summary['yes_shares']:.0f}")
-        position_table.add_row("NO Shares", f"{position_summary['no_shares']:.0f}")
-        position_table.add_row("Total Invested", f"${position_summary['total_invested']:,.2f}")
-        position_table.add_row("Total Withdrawn", f"${position_summary['total_withdrawn']:,.2f}")
-
-        pnl_color = "green" if position_summary['net_pnl'] >= 0 else "red"
-        position_table.add_row(
-            "Net PnL",
-            f"[{pnl_color}]${position_summary['net_pnl']:,.2f} ({position_summary['roi']:.2f}%)[/{pnl_color}]"
-        )
-
-        if position_summary.get('locked_pnl', 0) > 0:
-            position_table.add_row("Locked PnL", f"[green]${position_summary['locked_pnl']:,.2f}[/green]")
-
-        console.print(position_table)
-        console.print()
-
-    # Action
-    action_table = Table(title="🎯 Recommended Action", show_header=False, box=None)
-    action_table.add_column(style="cyan")
-    action_table.add_column(style="white")
-
-    action_type = action["action"]
-    action_color = "green" if action_type == "TAKE_PROFIT" else "red" if action_type == "STOP_LOSS" else "yellow"
-
-    action_table.add_row("Action", f"[{action_color}]{action_type}[/{action_color}]")
-    action_table.add_row("Reason", action["reason"])
-
-    console.print(action_table)
-
-
-def calculate_sleep_until_next_poll(
-    poll_interval: int,
-    last_poll_time: float
-) -> float:
-    """
-    Calculate seconds to sleep until next poll.
-
-    Args:
-        poll_interval: Desired poll interval in seconds
-        last_poll_time: Time of last poll (from time.time())
-
-    Returns:
-        Seconds to sleep (minimum 0)
-    """
-    elapsed = time.time() - last_poll_time
-    sleep_time = max(0, poll_interval - elapsed)
-    return sleep_time
+    return dt.strftime(TIMESTAMP_FORMAT_DISPLAY)
 
 
 def format_duration(seconds: float) -> str:
@@ -195,35 +133,218 @@ def format_duration(seconds: float) -> str:
     minutes = int((seconds % 3600) // 60)
     secs = int(seconds % 60)
 
-    parts = []
-    if hours > 0:
-        parts.append(f"{hours}h")
-    if minutes > 0:
-        parts.append(f"{minutes}m")
-    if secs > 0 or not parts:
-        parts.append(f"{secs}s")
+    duration_parts = []
 
-    return " ".join(parts)
+    if hours > 0:
+        duration_parts.append(f"{hours}h")
+    if minutes > 0:
+        duration_parts.append(f"{minutes}m")
+    if secs > 0 or not duration_parts:
+        duration_parts.append(f"{secs}s")
+
+    return " ".join(duration_parts)
+
+
+# ============================================================================
+# TABLE CREATION
+# ============================================================================
+
+
+def create_status_table(data: Dict[str, str], title: str = "Status") -> Table:
+    """
+    Create a Rich table for status display.
+
+    Args:
+        data: Dictionary of key-value pairs
+        title: Table title
+
+    Returns:
+        Rich Table object ready to be printed
+    """
+    table = Table(title=title, show_header=True, header_style=f"bold {DisplayColor.HIGHLIGHT}")
+    table.add_column("Metric", style=DisplayColor.HIGHLIGHT, no_wrap=True)
+    table.add_column("Value", style="white")
+
+    for key, value in data.items():
+        table.add_row(key, str(value))
+
+    return table
+
+
+# ============================================================================
+# AGENT STATUS DISPLAY
+# ============================================================================
+
+
+def print_agent_status(
+    current_prob: float,
+    yes_price: float,
+    no_price: float,
+    position_summary: Dict[str, Any],
+    action: Dict[str, Any]
+) -> None:
+    """
+    Print comprehensive agent status including market data, position, and action.
+
+    Args:
+        current_prob: Current YES probability
+        yes_price: Current YES price
+        no_price: Current NO price
+        position_summary: Position summary dictionary
+        action: Recommended action dictionary
+    """
+    _print_market_data_section(current_prob, yes_price, no_price)
+    _print_position_section(position_summary)
+    _print_action_section(action)
+
+
+def _print_market_data_section(current_prob: float, yes_price: float, no_price: float) -> None:
+    """Print market data table."""
+    market_table = Table(title=f"📊 Market Data", show_header=False, box=None)
+    market_table.add_column(style=DisplayColor.HIGHLIGHT)
+    market_table.add_column(style="white")
+
+    prob_color = _get_probability_color(current_prob)
+
+    market_table.add_row("Current Probability", f"[{prob_color}]{current_prob * 100:.2f}%[/{prob_color}]")
+    market_table.add_row("YES Price", f"${yes_price:.4f}")
+    market_table.add_row("NO Price", f"${no_price:.4f}")
+
+    console.print(market_table)
+    console.print()
+
+
+def _print_position_section(position_summary: Dict[str, Any]) -> None:
+    """Print position summary table if position exists."""
+    if position_summary["yes_shares"] <= 0 and position_summary["no_shares"] <= 0:
+        return
+
+    position_table = Table(title="💼 Position", show_header=False, box=None)
+    position_table.add_column(style=DisplayColor.HIGHLIGHT)
+    position_table.add_column(style="white")
+
+    position_table.add_row("YES Shares", f"{position_summary['yes_shares']:.0f}")
+    position_table.add_row("NO Shares", f"{position_summary['no_shares']:.0f}")
+    position_table.add_row("Total Invested", f"${position_summary['total_invested']:,.2f}")
+    position_table.add_row("Total Withdrawn", f"${position_summary['total_withdrawn']:,.2f}")
+
+    pnl_color = DisplayColor.SUCCESS if position_summary['net_pnl'] >= 0 else DisplayColor.ERROR
+    position_table.add_row(
+        "Net PnL",
+        f"[{pnl_color}]${position_summary['net_pnl']:,.2f} ({position_summary['roi']:.2f}%)[/{pnl_color}]"
+    )
+
+    if position_summary.get('locked_pnl', 0) > 0:
+        position_table.add_row(
+            "Locked PnL",
+            f"[{DisplayColor.SUCCESS}]${position_summary['locked_pnl']:,.2f}[/{DisplayColor.SUCCESS}]"
+        )
+
+    console.print(position_table)
+    console.print()
+
+
+def _print_action_section(action: Dict[str, Any]) -> None:
+    """Print recommended action table."""
+    action_table = Table(title="🎯 Recommended Action", show_header=False, box=None)
+    action_table.add_column(style=DisplayColor.HIGHLIGHT)
+    action_table.add_column(style="white")
+
+    action_type = action["action"]
+    action_color = _get_action_color(action_type)
+
+    action_table.add_row("Action", f"[{action_color}]{action_type}[/{action_color}]")
+    action_table.add_row("Reason", action["reason"])
+
+    console.print(action_table)
+
+
+def _get_probability_color(probability: float) -> str:
+    """
+    Get color for probability display based on thresholds.
+
+    Args:
+        probability: The probability value
+
+    Returns:
+        Color string for Rich console
+    """
+    if probability >= DEFAULT_TAKE_PROFIT_PROBABILITY:
+        return DisplayColor.PRICE_HIGH
+
+    if probability <= DEFAULT_STOP_LOSS_PROBABILITY:
+        return DisplayColor.PRICE_LOW
+
+    return DisplayColor.PRICE_MEDIUM
+
+
+def _get_action_color(action_type: str) -> str:
+    """
+    Get color for action display.
+
+    Args:
+        action_type: The action type (WAIT, HOLD, TAKE_PROFIT, STOP_LOSS)
+
+    Returns:
+        Color string for Rich console
+    """
+    action_colors = {
+        "TAKE_PROFIT": DisplayColor.SUCCESS,
+        "STOP_LOSS": DisplayColor.ERROR,
+        "HOLD": DisplayColor.WARNING,
+        "WAIT": DisplayColor.WARNING,
+    }
+
+    return action_colors.get(action_type, DisplayColor.INFO)
+
+
+# ============================================================================
+# TIME CALCULATIONS
+# ============================================================================
+
+
+def calculate_sleep_until_next_poll(
+    poll_interval: int,
+    last_poll_time: float
+) -> float:
+    """
+    Calculate seconds to sleep until next poll interval.
+
+    Args:
+        poll_interval: Desired poll interval in seconds
+        last_poll_time: Timestamp of last poll (from time.time())
+
+    Returns:
+        Seconds to sleep (minimum 0)
+    """
+    elapsed = time.time() - last_poll_time
+    sleep_time = max(0, poll_interval - elapsed)
+    return sleep_time
+
+
+# ============================================================================
+# VALIDATION
+# ============================================================================
 
 
 def validate_market_data(yes_price: float, no_price: float) -> bool:
     """
-    Validate market data is reasonable.
+    Validate that market data is within reasonable bounds.
 
     Args:
-        yes_price: YES price
-        no_price: NO price
+        yes_price: YES token price
+        no_price: NO token price
 
     Returns:
         True if valid, False otherwise
     """
-    # Prices should be between 0 and 1
-    if not (0 <= yes_price <= 1 and 0 <= no_price <= 1):
+    # Prices must be between 0 and 1
+    if not (MIN_PRICE <= yes_price <= MAX_PRICE and MIN_PRICE <= no_price <= MAX_PRICE):
         return False
 
-    # For binary markets, YES + NO should be close to 1.0
+    # For binary markets, YES + NO should be approximately 1.0
     total = yes_price + no_price
-    if not (0.95 <= total <= 1.05):
+    if not (MIN_PRICE_SUM <= total <= MAX_PRICE_SUM):
         return False
 
     return True
@@ -231,16 +352,17 @@ def validate_market_data(yes_price: float, no_price: float) -> bool:
 
 def safe_divide(numerator: float, denominator: float, default: float = 0.0) -> float:
     """
-    Safely divide two numbers.
+    Safely divide two numbers, returning default on division by zero.
 
     Args:
-        numerator: Numerator
-        denominator: Denominator
-        default: Default value if division by zero
+        numerator: The numerator
+        denominator: The denominator
+        default: Value to return if denominator is zero
 
     Returns:
-        Result or default
+        Result of division or default value
     """
     if denominator == 0:
         return default
+
     return numerator / denominator

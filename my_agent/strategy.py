@@ -1,9 +1,11 @@
 """Core trading strategy logic for automated hedging."""
 
 from typing import Optional, Dict, Tuple
+
 from my_agent.position import Position
 from my_agent.pnl_calculator import calculate_hedge_shares
 from my_agent.utils.config import config
+from my_agent.utils.constants import ActionType, PositionSide
 from my_agent.utils.logger import log_info, log_success, log_warning, log_error
 
 
@@ -120,7 +122,7 @@ class TradingStrategy:
         actual_proceeds = self.position.sell_shares(
             shares=yes_to_sell,
             price=yes_price,
-            side="YES",
+            side=PositionSide.YES,
             execute_trade=execute_trades
         )
 
@@ -128,7 +130,7 @@ class TradingStrategy:
         self.position.open_position(
             shares=no_to_buy,
             price=no_price,
-            side="NO",
+            side=PositionSide.NO,
             execute_trade=execute_trades
         )
 
@@ -138,7 +140,7 @@ class TradingStrategy:
         log_success(f"Hedge executed! Locked PnL: ${locked_pnl:,.2f}")
 
         return {
-            "action": "HEDGE",
+            "action": ActionType.HEDGE,
             "yes_sold": yes_to_sell,
             "yes_price": yes_price,
             "no_bought": no_to_buy,
@@ -183,7 +185,7 @@ class TradingStrategy:
             yes_proceeds = self.position.sell_shares(
                 shares=yes_shares,
                 price=yes_price,
-                side="YES",
+                side=PositionSide.YES,
                 execute_trade=execute_trades
             )
             total_proceeds += yes_proceeds
@@ -194,7 +196,7 @@ class TradingStrategy:
             no_proceeds = self.position.sell_shares(
                 shares=no_shares,
                 price=no_price,
-                side="NO",
+                side=PositionSide.NO,
                 execute_trade=execute_trades
             )
             total_proceeds += no_proceeds
@@ -212,7 +214,7 @@ class TradingStrategy:
         self.position.reset()
 
         return {
-            "action": "STOP_LOSS",
+            "action": ActionType.STOP_LOSS,
             "yes_sold": yes_shares,
             "yes_price": yes_price,
             "no_sold": no_shares,
@@ -236,7 +238,7 @@ class TradingStrategy:
         # Check if we have a position
         if not self.position.has_position():
             return {
-                "action": "WAIT",
+                "action": ActionType.WAIT,
                 "reason": "No position open",
                 "current_prob": current_prob
             }
@@ -244,7 +246,7 @@ class TradingStrategy:
         # Check take profit
         if self.should_take_profit(current_prob):
             return {
-                "action": "TAKE_PROFIT",
+                "action": ActionType.TAKE_PROFIT,
                 "reason": f"Probability {current_prob * 100:.1f}% >= {self.take_profit_threshold * 100:.1f}%",
                 "current_prob": current_prob,
                 "yes_price": yes_price,
@@ -254,7 +256,7 @@ class TradingStrategy:
         # Check stop loss
         if self.should_cut_loss(current_prob):
             return {
-                "action": "STOP_LOSS",
+                "action": ActionType.STOP_LOSS,
                 "reason": f"Probability {current_prob * 100:.1f}% <= {self.stop_loss_threshold * 100:.1f}%",
                 "current_prob": current_prob,
                 "yes_price": yes_price,
@@ -265,7 +267,7 @@ class TradingStrategy:
         pnl = self.position.calculate_unrealized_pnl(yes_price, no_price)
 
         return {
-            "action": "HOLD",
+            "action": ActionType.HOLD,
             "reason": f"Within thresholds ({self.stop_loss_threshold * 100:.1f}% - {self.take_profit_threshold * 100:.1f}%)",
             "current_prob": current_prob,
             "unrealized_pnl": pnl["unrealized_pnl"],
@@ -284,25 +286,25 @@ class TradingStrategy:
         """
         action_type = action["action"]
 
-        if action_type == "TAKE_PROFIT":
+        if action_type == ActionType.TAKE_PROFIT:
             return self.book_profit_and_rebalance(
                 yes_price=action["yes_price"],
                 no_price=action["no_price"],
                 execute_trades=EXECUTE_REAL_TRADES  # Respects DEMO_MODE
             )
 
-        elif action_type == "STOP_LOSS":
+        elif action_type == ActionType.STOP_LOSS:
             return self.cut_loss_and_exit(
                 yes_price=action["yes_price"],
                 no_price=action["no_price"],
                 execute_trades=EXECUTE_REAL_TRADES  # Respects DEMO_MODE
             )
 
-        elif action_type == "HOLD":
+        elif action_type == ActionType.HOLD:
             log_info(f"HOLD - {action['reason']}")
             return None
 
-        elif action_type == "WAIT":
+        elif action_type == ActionType.WAIT:
             log_info(f"WAIT - {action['reason']}")
             return None
 
