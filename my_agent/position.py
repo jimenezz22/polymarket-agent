@@ -6,6 +6,8 @@ from typing import Optional, Dict, List, TYPE_CHECKING
 from datetime import datetime
 from dataclasses import dataclass, asdict
 
+from my_agent.utils.constants import PositionSide, TradeType
+
 if TYPE_CHECKING:
     from agents.polymarket.polymarket import Polymarket
 
@@ -72,7 +74,7 @@ class Position:
         self,
         shares: float,
         price: float,
-        side: str = "YES",
+        side: str = PositionSide.YES,
         entry_prob: Optional[float] = None,
         execute_trade: bool = False
     ):
@@ -82,7 +84,7 @@ class Position:
         Args:
             shares: Number of shares to buy
             price: Price per share
-            side: "YES" or "NO"
+            side: Position side (PositionSide.YES or PositionSide.NO)
             entry_prob: Entry probability (optional)
             execute_trade: If True, execute real blockchain transaction
         """
@@ -100,7 +102,7 @@ class Position:
                 order_result = self.polymarket_client.execute_order(
                     price=price,
                     size=shares,
-                    side="BUY",
+                    side=TradeType.BUY,
                     token_id=self.token_id
                 )
 
@@ -114,7 +116,7 @@ class Position:
 
         self.total_invested += usdc_amount
 
-        if side == "YES":
+        if side == PositionSide.YES:
             # Update average cost
             total_cost = (self.yes_shares * self.avg_cost_yes) + (shares * price)
             self.yes_shares += shares
@@ -135,7 +137,7 @@ class Position:
             side=side,
             shares=shares,
             price=price,
-            trade_type="BUY",
+            trade_type=TradeType.BUY,
             usdc_amount=usdc_amount
         )
         self.trades.append(trade)
@@ -146,7 +148,7 @@ class Position:
         self,
         shares: float,
         price: float,
-        side: str = "YES",
+        side: str = PositionSide.YES,
         execute_trade: bool = False
     ) -> float:
         """
@@ -155,7 +157,7 @@ class Position:
         Args:
             shares: Number of shares to sell
             price: Price per share
-            side: "YES" or "NO"
+            side: Position side (PositionSide.YES or PositionSide.NO)
             execute_trade: If True, execute real blockchain transaction
 
         Returns:
@@ -163,7 +165,7 @@ class Position:
         """
         from my_agent.utils.logger import log_info, log_success, log_warning
 
-        if side == "YES":
+        if side == PositionSide.YES:
             if shares > self.yes_shares:
                 raise ValueError(f"Cannot sell {shares} YES shares, only have {self.yes_shares}")
         else:  # NO
@@ -182,7 +184,7 @@ class Position:
                 order_result = self.polymarket_client.execute_order(
                     price=price,
                     size=shares,
-                    side="SELL",
+                    side=TradeType.SELL,
                     token_id=self.token_id
                 )
 
@@ -195,7 +197,7 @@ class Position:
             log_info(f"📝 DEMO MODE: Simulating SELL {shares:.2f} {side} @ ${price:.4f}")
 
         # Update local state
-        if side == "YES":
+        if side == PositionSide.YES:
             self.yes_shares -= shares
         else:  # NO
             self.no_shares -= shares
@@ -208,7 +210,7 @@ class Position:
             side=side,
             shares=shares,
             price=price,
-            trade_type="SELL",
+            trade_type=TradeType.SELL,
             usdc_amount=usdc_proceeds
         )
         self.trades.append(trade)

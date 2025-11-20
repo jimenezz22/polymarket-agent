@@ -2,9 +2,18 @@
 
 import os
 from typing import Optional, Dict
+
 from langchain_core.messages import HumanMessage, SystemMessage
-from my_agent.utils.logger import log_info, log_warning, log_error
+
 from my_agent.utils.config import config
+from my_agent.utils.constants import (
+    AI_TEMPERATURE,
+    DEFAULT_CLAUDE_MODEL,
+    DEFAULT_GEMINI_MODEL,
+    DEFAULT_OPENAI_MODEL,
+    AIProvider,
+)
+from my_agent.utils.logger import log_info, log_warning, log_error
 
 
 class AIAdvisor:
@@ -30,15 +39,15 @@ class AIAdvisor:
 
         # Try to initialize the selected provider
         try:
-            if self.provider == "gemini":
-                self._init_gemini(model or "gemini-2.5-flash")
-            elif self.provider == "openai":
-                self._init_openai(model or "gpt-3.5-turbo")
-            elif self.provider == "claude":
-                self._init_claude(model or "claude-3-haiku-20240307")
+            if self.provider == AIProvider.GEMINI:
+                self._init_gemini(model or DEFAULT_GEMINI_MODEL)
+            elif self.provider == AIProvider.OPENAI:
+                self._init_openai(model or DEFAULT_OPENAI_MODEL)
+            elif self.provider == AIProvider.CLAUDE:
+                self._init_claude(model or DEFAULT_CLAUDE_MODEL)
             else:
                 log_warning(f"Unknown provider: {provider}, trying Gemini as fallback")
-                self._init_gemini("gemini-2.5-flash")
+                self._init_gemini(DEFAULT_GEMINI_MODEL)
 
         except Exception as e:
             log_warning(f"AI Advisor initialization failed: {e}")
@@ -54,10 +63,10 @@ class AIAdvisor:
             raise ValueError("GOOGLE_API_KEY or GEMINI_API_KEY not found")
 
         genai.configure(api_key=api_key)
-        self.llm = genai.GenerativeModel('gemini-2.5-flash')
+        self.llm = genai.GenerativeModel(DEFAULT_GEMINI_MODEL)
         self.is_gemini_direct = True  # Flag for custom handling
-        
-        log_info(f"🤖 AI Advisor initialized (Gemini Direct: gemini-2.5-flash)")
+
+        log_info(f"🤖 AI Advisor initialized (Gemini Direct: {DEFAULT_GEMINI_MODEL})")
 
     def _init_openai(self, model: str):
         """Initialize OpenAI."""
@@ -68,7 +77,7 @@ class AIAdvisor:
 
         self.llm = ChatOpenAI(
             model=model,
-            temperature=0.3,
+            temperature=AI_TEMPERATURE,
             api_key=config.OPENAI_API_KEY
         )
         log_info(f"🤖 AI Advisor initialized (OpenAI: {model})")
@@ -83,7 +92,7 @@ class AIAdvisor:
 
         self.llm = ChatAnthropic(
             model=model,
-            temperature=0.3,
+            temperature=AI_TEMPERATURE,
             anthropic_api_key=api_key
         )
         log_info(f"🤖 AI Advisor initialized (Claude: {model})")
