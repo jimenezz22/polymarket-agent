@@ -22,7 +22,7 @@ This agent extends the official Polymarket Agents framework with a sophisticated
 - ✅ Detailed logging with Rich CLI interface
 - ✅ Comprehensive test scenarios and backtesting
 - ✅ PnL tracking (unrealized and locked)
-- ✅ AI/LLM integration for dynamic threshold adjustment
+- 🔄 AI/LLM integration for dynamic threshold adjustment (optional)
 
 ## Architecture
 
@@ -77,7 +77,7 @@ Edit `.env` file:
 ```env
 # Required for Polymarket Agents
 POLYGON_WALLET_PRIVATE_KEY=your_private_key_without_0x
-GOOGLE_API_KEY=your_google_api_key  # for AI features
+GEMINI_API_KEY=your_gemini_api_key  # Optional: for AI features
 
 # Network
 POLYGON_RPC_URL=https://polygon-mainnet.g.alchemy.com/v2/xxx
@@ -104,13 +104,12 @@ python main.py
 ### Run Tests
 
 ```bash
-pytest tests/
-```
+# Quick tests (recommended)
+python3 test_quick.py
 
-### Run Backtest Scenarios
-
-```bash
-python test_strategy.py
+# Full test suite
+python3 tests/test_strategy.py
+python3 tests/test_position.py
 ```
 
 ### Use Official Polymarket Agents CLI
@@ -150,10 +149,10 @@ Guaranteed profit: $7,679 - $1,000 = +$6,679 (if NO wins)
 
 ## Testing
 
-See test_strategy.py for detailed test scenarios:
-- **Scenario 1**: Profit-taking and hedging (80% → 86%)
+See [tests/report.md](tests/report.md) for detailed test results. Test scenarios:
+- **Scenario 1**: Profit-taking and hedging (80% → 85%)
 - **Scenario 2**: Stop-loss execution (80% → 76%)
-- **Scenario 3**: Locked profit protection (85% → hedge → 50% crash)
+- **Scenario 3**: Hedge protection during crash (85% → 50%)
 
 ## Documentation
 
@@ -167,19 +166,13 @@ See test_strategy.py for detailed test scenarios:
 ### Additional
 - [FUTURE.md](docs/FUTURE.md) - Roadmap & improvements
 - [REFACTORING_REPORT.md](docs/REFACTORING_REPORT.md) - Clean code refactoring details
+- [Test Report](tests/report.md) - Detailed test results with sample trades
 
 ## Related Repos
 
 - [Polymarket/agents](https://github.com/Polymarket/agents) - Official framework we extend
 - [py-clob-client](https://github.com/Polymarket/py-clob-client) - Python client for Polymarket CLOB
 - [python-order-utils](https://github.com/Polymarket/python-order-utils) - Order signing utilities
-
-## Contributing
-
-1. Fork the repository
-2. Create a new branch
-3. Make your changes
-4. Submit a pull request
 
 ## License
 
