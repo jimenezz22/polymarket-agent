@@ -37,6 +37,9 @@ class Config:
     MAX_SLIPPAGE_PERCENT: float = float(os.getenv("MAX_SLIPPAGE_PERCENT", "2.0"))
     MIN_LIQUIDITY_USD: float = float(os.getenv("MIN_LIQUIDITY_USD", "5000"))
 
+    # Execution Mode
+    DEMO_MODE: bool = os.getenv("DEMO_MODE", "true").lower() in ("true", "1", "yes")
+
     # USDC Contract (Polygon Mainnet)
     USDC_ADDRESS: str = "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174"
 
@@ -90,6 +93,9 @@ Strategy Parameters:
 Risk Management:
   • Max Slippage: {cls.MAX_SLIPPAGE_PERCENT}%
   • Min Liquidity: ${cls.MIN_LIQUIDITY_USD:,.0f}
+
+Execution Mode:
+  • Demo Mode: {'ENABLED (No real trades)' if cls.DEMO_MODE else 'DISABLED (Real trades!)'}
 """
 
 

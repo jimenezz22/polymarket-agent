@@ -90,9 +90,16 @@ def initialize_agent():
         log_error(f"Gamma client initialization failed: {e}")
         sys.exit(1)
 
-    # Initialize position manager
+    # Initialize position manager with polymarket client
     try:
-        position = get_position()
+        # TODO: Get token_id from market (for now, set to None - will use demo mode)
+        # In production, you'd fetch the token_id from the market data
+        token_id = None  # Will be fetched from market in production
+
+        position = get_position(
+            polymarket_client=polymarket_client,
+            token_id=token_id
+        )
 
         if position.has_position():
             log_info(f"Loaded existing position: {position.yes_shares:.0f} YES, {position.no_shares:.0f} NO")
@@ -296,28 +303,37 @@ def main_loop():
                 log_warning(f"⚠ ACTION REQUIRED: {final_action['action']}")
                 log_info(f"Reason: {final_action['reason']}")
 
-                # NOTE: In production, integrate with polymarket_client for real trades
-                log_warning("⚠ DEMO MODE: Trade execution disabled")
-                log_info("To enable real trading:")
-                log_info("  1. Ensure USDC approvals are set (run agents approval script)")
-                log_info("  2. Integrate strategy with polymarket_client.place_order()")
-                log_info("  3. Test on testnet first!")
+                # Check demo mode
+                if config.DEMO_MODE:
+                    log_warning("📝 DEMO MODE: Simulating trade execution")
+                    log_info("💡 Set DEMO_MODE=false in .env to enable REAL trades")
+                else:
+                    log_warning("🔥 LIVE MODE: Will execute REAL blockchain transactions!")
+                    log_warning("⚠️  Make sure USDC approvals are set!")
 
-                # TODO: Real implementation
-                # try:
-                #     if action["action"] == "TAKE_PROFIT":
-                #         # Sell YES shares via polymarket_client
-                #         # Buy NO shares with proceeds
-                #         result = strategy.execute_action(action)
-                #     elif final_action["action"] == "STOP_LOSS":
-                #         # Sell all shares
-                #         result = strategy.execute_action(action)
-                #
-                #     if result:
-                #         log_success(f"Action executed: {result}")
-                #         last_action_time = time.time()
-                # except Exception as e:
-                #     log_error(f"Action execution failed: {e}")
+                console.print()
+
+                # Execute trade (respects DEMO_MODE via execute_trades parameter)
+                try:
+                    result = strategy.execute_action(final_action)
+
+                    if result:
+                        log_success(f"✅ Action executed: {result.get('action')}")
+
+                        # Display trade details
+                        if result.get("action") == "HEDGE":
+                            log_success(f"   Locked PnL: ${result.get('locked_pnl', 0):,.2f}")
+                            log_info(f"   Remaining: {result.get('remaining_yes', 0):.0f} YES, {result.get('remaining_no', 0):.0f} NO")
+                        elif result.get("action") == "STOP_LOSS":
+                            log_info(f"   Final PnL: ${result.get('final_pnl', 0):,.2f}")
+                            log_info(f"   Total proceeds: ${result.get('total_proceeds', 0):,.2f}")
+
+                        last_action_time = time.time()
+
+                except Exception as e:
+                    log_error(f"❌ Action execution failed: {e}")
+                    import traceback
+                    traceback.print_exc()
 
             elif final_action["action"] == "HOLD":
                 log_info("💼 HOLD - Position maintained")

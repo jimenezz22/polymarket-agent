@@ -2,9 +2,12 @@
 
 import json
 import os
-from typing import Optional, Dict, List
+from typing import Optional, Dict, List, TYPE_CHECKING
 from datetime import datetime
 from dataclasses import dataclass, asdict
+
+if TYPE_CHECKING:
+    from agents.polymarket.polymarket import Polymarket
 
 
 @dataclass
@@ -30,14 +33,23 @@ class Trade:
 class Position:
     """Manages trading position state and persistence."""
 
-    def __init__(self, position_file: str = "position.json"):
+    def __init__(
+        self,
+        position_file: str = "position.json",
+        polymarket_client: Optional["Polymarket"] = None,
+        token_id: Optional[str] = None
+    ):
         """
         Initialize position manager.
 
         Args:
             position_file: Path to position state file
+            polymarket_client: Polymarket client for executing real trades
+            token_id: Market token ID for trade execution
         """
         self.position_file = position_file
+        self.polymarket_client = polymarket_client
+        self.token_id = token_id
 
         # Position state
         self.yes_shares: float = 0.0
@@ -61,7 +73,8 @@ class Position:
         shares: float,
         price: float,
         side: str = "YES",
-        entry_prob: Optional[float] = None
+        entry_prob: Optional[float] = None,
+        execute_trade: bool = False
     ):
         """
         Open initial position.
@@ -71,8 +84,34 @@ class Position:
             price: Price per share
             side: "YES" or "NO"
             entry_prob: Entry probability (optional)
+            execute_trade: If True, execute real blockchain transaction
         """
+        from my_agent.utils.logger import log_info, log_success, log_warning
+
         usdc_amount = shares * price
+
+        # Execute real trade if enabled
+        if execute_trade and self.polymarket_client and self.token_id:
+            try:
+                log_info(f"🔐 Executing REAL blockchain transaction...")
+                log_info(f"   BUY {shares:.2f} {side} @ ${price:.4f} = ${usdc_amount:.2f} USDC")
+
+                # Execute market buy order via Polymarket
+                order_result = self.polymarket_client.execute_order(
+                    price=price,
+                    size=shares,
+                    side="BUY",
+                    token_id=self.token_id
+                )
+
+                log_success(f"✅ Transaction successful! Order ID: {order_result}")
+
+            except Exception as e:
+                log_warning(f"❌ Blockchain transaction failed: {e}")
+                raise
+        else:
+            log_info(f"📝 DEMO MODE: Simulating BUY {shares:.2f} {side} @ ${price:.4f}")
+
         self.total_invested += usdc_amount
 
         if side == "YES":
@@ -107,7 +146,8 @@ class Position:
         self,
         shares: float,
         price: float,
-        side: str = "YES"
+        side: str = "YES",
+        execute_trade: bool = False
     ) -> float:
         """
         Sell shares.
@@ -116,20 +156,50 @@ class Position:
             shares: Number of shares to sell
             price: Price per share
             side: "YES" or "NO"
+            execute_trade: If True, execute real blockchain transaction
 
         Returns:
             USDC proceeds from sale
         """
+        from my_agent.utils.logger import log_info, log_success, log_warning
+
         if side == "YES":
             if shares > self.yes_shares:
                 raise ValueError(f"Cannot sell {shares} YES shares, only have {self.yes_shares}")
-            self.yes_shares -= shares
         else:  # NO
             if shares > self.no_shares:
                 raise ValueError(f"Cannot sell {shares} NO shares, only have {self.no_shares}")
-            self.no_shares -= shares
 
         usdc_proceeds = shares * price
+
+        # Execute real trade if enabled
+        if execute_trade and self.polymarket_client and self.token_id:
+            try:
+                log_info(f"🔐 Executing REAL blockchain transaction...")
+                log_info(f"   SELL {shares:.2f} {side} @ ${price:.4f} = ${usdc_proceeds:.2f} USDC")
+
+                # Execute market sell order via Polymarket
+                order_result = self.polymarket_client.execute_order(
+                    price=price,
+                    size=shares,
+                    side="SELL",
+                    token_id=self.token_id
+                )
+
+                log_success(f"✅ Transaction successful! Order ID: {order_result}")
+
+            except Exception as e:
+                log_warning(f"❌ Blockchain transaction failed: {e}")
+                raise
+        else:
+            log_info(f"📝 DEMO MODE: Simulating SELL {shares:.2f} {side} @ ${price:.4f}")
+
+        # Update local state
+        if side == "YES":
+            self.yes_shares -= shares
+        else:  # NO
+            self.no_shares -= shares
+
         self.total_withdrawn += usdc_proceeds
 
         # Record trade
@@ -311,9 +381,31 @@ class Position:
 _position_instance: Optional[Position] = None
 
 
-def get_position(position_file: str = "position.json") -> Position:
-    """Get or create position singleton."""
+def get_position(
+    position_file: str = "position.json",
+    polymarket_client: Optional["Polymarket"] = None,
+    token_id: Optional[str] = None
+) -> Position:
+    """
+    Get or create position singleton.
+
+    Args:
+        position_file: Path to position file
+        polymarket_client: Polymarket client for blockchain transactions
+        token_id: Market token ID for trading
+
+    Returns:
+        Position instance
+    """
     global _position_instance
     if _position_instance is None:
-        _position_instance = Position(position_file)
+        _position_instance = Position(
+            position_file=position_file,
+            polymarket_client=polymarket_client,
+            token_id=token_id
+        )
+    # Update client if provided (allows re-initialization)
+    elif polymarket_client is not None:
+        _position_instance.polymarket_client = polymarket_client
+        _position_instance.token_id = token_id
     return _position_instance

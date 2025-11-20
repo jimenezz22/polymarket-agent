@@ -7,6 +7,10 @@ from my_agent.utils.config import config
 from my_agent.utils.logger import log_info, log_success, log_warning, log_error
 
 
+# Global flag to control trade execution (set from config.DEMO_MODE)
+EXECUTE_REAL_TRADES = not config.DEMO_MODE
+
+
 class TradingStrategy:
     """Implements automated take-profit and stop-loss strategy with hedging."""
 
@@ -111,47 +115,39 @@ class TradingStrategy:
         log_info(f"  Sell {yes_to_sell:.0f} YES @ ${yes_price:.4f} → ${usdc_proceeds:,.2f}")
         log_info(f"  Buy {no_to_buy:.0f} NO @ ${no_price:.4f}")
 
-        if execute_trades:
-            # Execute sell YES
-            actual_proceeds = self.position.sell_shares(
-                shares=yes_to_sell,
-                price=yes_price,
-                side="YES"
-            )
+        # Always execute locally (blockchain execution controlled by execute_trade parameter)
+        # Execute sell YES (will use blockchain if execute_trades=True AND client configured)
+        actual_proceeds = self.position.sell_shares(
+            shares=yes_to_sell,
+            price=yes_price,
+            side="YES",
+            execute_trade=execute_trades
+        )
 
-            # Execute buy NO
-            self.position.open_position(
-                shares=no_to_buy,
-                price=no_price,
-                side="NO"
-            )
+        # Execute buy NO (will use blockchain if execute_trades=True AND client configured)
+        self.position.open_position(
+            shares=no_to_buy,
+            price=no_price,
+            side="NO",
+            execute_trade=execute_trades
+        )
 
-            # Calculate locked PnL
-            locked_pnl = self.position.calculate_locked_pnl()
+        # Calculate locked PnL
+        locked_pnl = self.position.calculate_locked_pnl()
 
-            log_success(f"Hedge executed! Locked PnL: ${locked_pnl:,.2f}")
+        log_success(f"Hedge executed! Locked PnL: ${locked_pnl:,.2f}")
 
-            return {
-                "action": "HEDGE",
-                "yes_sold": yes_to_sell,
-                "yes_price": yes_price,
-                "no_bought": no_to_buy,
-                "no_price": no_price,
-                "proceeds": actual_proceeds,
-                "locked_pnl": locked_pnl,
-                "remaining_yes": self.position.yes_shares,
-                "remaining_no": self.position.no_shares
-            }
-        else:
-            # Dry run
-            return {
-                "action": "HEDGE_SIMULATION",
-                "yes_to_sell": yes_to_sell,
-                "yes_price": yes_price,
-                "no_to_buy": no_to_buy,
-                "no_price": no_price,
-                "proceeds": usdc_proceeds
-            }
+        return {
+            "action": "HEDGE",
+            "yes_sold": yes_to_sell,
+            "yes_price": yes_price,
+            "no_bought": no_to_buy,
+            "no_price": no_price,
+            "proceeds": actual_proceeds,
+            "locked_pnl": locked_pnl,
+            "remaining_yes": self.position.yes_shares,
+            "remaining_no": self.position.no_shares
+        }
 
     def cut_loss_and_exit(
         self,
@@ -181,63 +177,49 @@ class TradingStrategy:
         log_warning(f"Stop Loss Triggered:")
         log_warning(f"  Current prob: {yes_price * 100:.2f}%")
 
-        if execute_trades:
-            # Sell all YES if we have any
-            if yes_shares > 0:
-                yes_proceeds = self.position.sell_shares(
-                    shares=yes_shares,
-                    price=yes_price,
-                    side="YES"
-                )
-                total_proceeds += yes_proceeds
-                log_info(f"  Sold {yes_shares:.0f} YES @ ${yes_price:.4f} → ${yes_proceeds:,.2f}")
+        # Always execute locally (blockchain execution controlled by execute_trade parameter)
+        # Sell all YES if we have any (will use blockchain if execute_trades=True AND client configured)
+        if yes_shares > 0:
+            yes_proceeds = self.position.sell_shares(
+                shares=yes_shares,
+                price=yes_price,
+                side="YES",
+                execute_trade=execute_trades
+            )
+            total_proceeds += yes_proceeds
+            log_info(f"  Sold {yes_shares:.0f} YES @ ${yes_price:.4f} → ${yes_proceeds:,.2f}")
 
-            # Sell all NO if we have any
-            if no_shares > 0 and no_price:
-                no_proceeds = self.position.sell_shares(
-                    shares=no_shares,
-                    price=no_price,
-                    side="NO"
-                )
-                total_proceeds += no_proceeds
-                log_info(f"  Sold {no_shares:.0f} NO @ ${no_price:.4f} → ${no_proceeds:,.2f}")
+        # Sell all NO if we have any (will use blockchain if execute_trades=True AND client configured)
+        if no_shares > 0 and no_price:
+            no_proceeds = self.position.sell_shares(
+                shares=no_shares,
+                price=no_price,
+                side="NO",
+                execute_trade=execute_trades
+            )
+            total_proceeds += no_proceeds
+            log_info(f"  Sold {no_shares:.0f} NO @ ${no_price:.4f} → ${no_proceeds:,.2f}")
 
-            # Calculate final PnL
-            final_pnl = self.position.total_withdrawn - self.position.total_invested
+        # Calculate final PnL
+        final_pnl = self.position.total_withdrawn - self.position.total_invested
 
-            if final_pnl >= 0:
-                log_success(f"Exited with profit: ${final_pnl:,.2f}")
-            else:
-                log_error(f"Exited with loss: ${final_pnl:,.2f}")
-
-            # Reset position
-            self.position.reset()
-
-            return {
-                "action": "STOP_LOSS",
-                "yes_sold": yes_shares,
-                "yes_price": yes_price,
-                "no_sold": no_shares,
-                "no_price": no_price,
-                "total_proceeds": total_proceeds,
-                "final_pnl": final_pnl
-            }
+        if final_pnl >= 0:
+            log_success(f"Exited with profit: ${final_pnl:,.2f}")
         else:
-            # Dry run
-            yes_value = yes_shares * yes_price
-            no_value = no_shares * no_price if (no_shares > 0 and no_price) else 0
-            total_value = yes_value + no_value
+            log_error(f"Exited with loss: ${final_pnl:,.2f}")
 
-            return {
-                "action": "STOP_LOSS_SIMULATION",
-                "yes_shares": yes_shares,
-                "yes_price": yes_price,
-                "yes_value": yes_value,
-                "no_shares": no_shares,
-                "no_price": no_price,
-                "no_value": no_value,
-                "total_value": total_value
-            }
+        # Reset position
+        self.position.reset()
+
+        return {
+            "action": "STOP_LOSS",
+            "yes_sold": yes_shares,
+            "yes_price": yes_price,
+            "no_sold": no_shares,
+            "no_price": no_price,
+            "total_proceeds": total_proceeds,
+            "final_pnl": final_pnl
+        }
 
     def evaluate(self, current_prob: float, yes_price: float, no_price: float) -> Dict:
         """
@@ -306,14 +288,14 @@ class TradingStrategy:
             return self.book_profit_and_rebalance(
                 yes_price=action["yes_price"],
                 no_price=action["no_price"],
-                execute_trades=True
+                execute_trades=EXECUTE_REAL_TRADES  # Respects DEMO_MODE
             )
 
         elif action_type == "STOP_LOSS":
             return self.cut_loss_and_exit(
                 yes_price=action["yes_price"],
                 no_price=action["no_price"],
-                execute_trades=True
+                execute_trades=EXECUTE_REAL_TRADES  # Respects DEMO_MODE
             )
 
         elif action_type == "HOLD":
